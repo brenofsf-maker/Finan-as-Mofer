@@ -2406,13 +2406,33 @@ function extractSheetId(url) {
   return m ? m[1] : null;
 }
 
-function buildCsvUrl(sheetUrl) {
+function buildCsvUrl(sheetUrl, gidOverride) {
   const id = extractSheetId(sheetUrl);
   if (!id) return null;
-  // Tenta extrair gid da aba (se o link tem #gid=...)
-  const gidMatch = sheetUrl.match(/gid=(\d+)/);
-  const gid = gidMatch ? gidMatch[1] : '0';
+  // Tenta extrair gid: primeiro do override, depois da URL
+  let gid = gidOverride;
+  if (!gid) {
+    const gidMatch = sheetUrl.match(/[#&?]gid=(\d+)/);
+    gid = gidMatch ? gidMatch[1] : '0';
+  }
   return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
+}
+
+// Tenta descobrir o gid da primeira aba (útil quando o usuário cola só o link sem gid)
+async function discoverFirstGid(sheetUrl) {
+  const id = extractSheetId(sheetUrl);
+  if (!id) return null;
+  try {
+    // O endpoint /htmlview retorna HTML que contém os gids das abas
+    const url = `https://docs.google.com/spreadsheets/d/${id}/htmlview`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const html = await res.text();
+    const m = html.match(/gid=(\d+)/);
+    return m ? m[1] : null;
+  } catch {
+    return null;
+  }
 }
 
 // Parser de CSV simples (lida com vírgulas dentro de aspas)
@@ -2486,15 +2506,34 @@ async function importFromSheet() {
   const url = state.sheetUrl || document.getElementById('sheetUrl').value.trim();
   if (!url) { alert('Salve a URL da planilha primeiro'); return; }
 
-  const csvUrl = buildCsvUrl(url);
-  if (!csvUrl) { alert('URL inválida'); return; }
-
   const status = document.getElementById('sheetStatus');
   status.innerHTML = '<span style="color:var(--ink-dim)">⟳ Buscando dados…</span>';
 
+  let csvUrl = buildCsvUrl(url);
+  if (!csvUrl) {
+    status.innerHTML = '<span style="color:var(--danger)">✗ URL inválida</span>';
+    return;
+  }
+
+  let res;
   try {
-    const res = await fetch(csvUrl);
+    res = await fetch(csvUrl);
+    // Se a primeira tentativa falhar e o link não tinha gid, tenta descobrir
+    if (!res.ok && !url.match(/[#&?]gid=\d+/)) {
+      status.innerHTML = '<span style="color:var(--ink-dim)">⟳ Tentando detectar aba correta…</span>';
+      const discoveredGid = await discoverFirstGid(url);
+      if (discoveredGid) {
+        csvUrl = buildCsvUrl(url, discoveredGid);
+        res = await fetch(csvUrl);
+      }
+    }
     if (!res.ok) throw new Error('Não foi possível acessar a planilha. Verifique se está pública como "Qualquer pessoa com o link · Leitor".');
+  } catch (err) {
+    status.innerHTML = `<span style="color:var(--danger)">✗ ${err.message}</span>`;
+    return;
+  }
+
+  try {
     const text = await res.text();
     const rows = parseCsv(text);
 
@@ -2505,16 +2544,14 @@ async function importFromSheet() {
 
     // Identificar colunas pelo cabeçalho (mais tolerante a mudanças de ordem)
     const header = rows[0].map(h => h.toLowerCase().trim());
-    const idx = {
-      timestamp: header.findIndex(h => h.includes('carimbo') || h.includes('timestamp') || h.includes('data/hora')),
-      pessoa: header.findIndex(h => h.includes('quem') || h.includes('pessoa') || h.includes('lançando')),
-      tipo: header.findIndex(h => h === 'tipo' || h.includes('tipo')),
-      categoria: header.findIndex(h => h.includes('categoria')),
-      descricao: header.findIndex(h => h.includes('descrição') || h.includes('descricao')),
-      valor: header.findIndex(h => h.includes('valor')),
-      data: header.findIndex((h, i) => h.includes('data') && i !== idx?.timestamp && !h.includes('hora'))
-    };
-    // Refaz idx.data sem dependência circular
+    const idx = {};
+    idx.timestamp = header.findIndex(h => h.includes('carimbo') || h.includes('timestamp') || h.includes('data/hora'));
+    idx.pessoa = header.findIndex(h => h.includes('quem') || h.includes('pessoa') || h.includes('lançando'));
+    idx.tipo = header.findIndex(h => h === 'tipo' || h.includes('tipo'));
+    idx.categoria = header.findIndex(h => h.includes('categoria'));
+    idx.descricao = header.findIndex(h => h.includes('descrição') || h.includes('descricao'));
+    idx.valor = header.findIndex(h => h.includes('valor'));
+    // "data" precisa vir depois para não pegar "data/hora" do timestamp
     idx.data = header.findIndex((h, i) => h.includes('data') && i !== idx.timestamp && !h.includes('hora'));
 
     let added = 0;
@@ -2560,7 +2597,7 @@ async function importFromSheet() {
     if (added > 0) toast(`${added} lançamento${added !== 1 ? 's' : ''} importado${added !== 1 ? 's' : ''}`);
 
   } catch (err) {
-    status.innerHTML = `<span style="color:var(--danger)">✗ ${err.message}</span>`;
+    status.innerHTML = `<span style="color:var(--danger)">✗ Erro ao processar: ${err.message}</span>`;
   }
 }
 
