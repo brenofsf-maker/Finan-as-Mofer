@@ -796,6 +796,7 @@
 
     <div class="nav-group-label">Visão</div>
     <div class="nav-item active" data-page="overview"><span class="dot"></span> Resumo</div>
+    <div class="nav-item" data-page="income"><span class="dot"></span> Receitas</div>
     <div class="nav-item" data-page="transactions"><span class="dot"></span> Lançamentos</div>
     <div class="nav-item" data-page="categories"><span class="dot"></span> Categorias</div>
     <div class="nav-item" data-page="evolution"><span class="dot"></span> Evolução</div>
@@ -899,6 +900,71 @@
           <button class="btn" onclick="openTransactionModal()">+ Lançamento</button>
         </div>
         <div id="recentTransactions"></div>
+      </div>
+    </section>
+
+    <!-- ============== INCOME ============== -->
+    <section class="page" id="page-income">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Receitas do <em>mês</em></h1>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select class="month-selector" id="incomeMonthSelector"></select>
+          <button class="btn" onclick="openIncomeExtraModal()">+ Receita extra</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="kpi highlight">
+          <div class="kpi-label">Total recebido</div>
+          <div class="kpi-value positive" id="incTotal">R$ 0</div>
+          <div class="kpi-sub" id="incTotalSub">—</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">vs mês anterior</div>
+          <div class="kpi-value" id="incVsPrev">—</div>
+          <div class="kpi-sub" id="incVsPrevSub">—</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Média 3 meses</div>
+          <div class="kpi-value" id="incAvg">R$ 0</div>
+          <div class="kpi-sub">Histórico recente</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Receitas <em>fixas</em></h2>
+              <div class="section-sub">Salários e entradas recorrentes</div>
+            </div>
+          </div>
+          <div id="fixedIncomesList"></div>
+        </div>
+
+        <div class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Receitas <em>extras</em></h2>
+              <div class="section-sub">Freelas, vendas, presentes</div>
+            </div>
+          </div>
+          <div id="extraIncomesList"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Histórico de <em>receitas</em></h2>
+            <div class="section-sub">Últimos meses</div>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="incomeChart"></canvas>
+        </div>
       </div>
     </section>
 
@@ -1265,6 +1331,72 @@
         <button type="submit" class="btn">Salvar</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- INCOME EXTRA MODAL -->
+<div class="modal-backdrop" id="incomeExtraModal">
+  <div class="modal">
+    <h2 class="modal-title">Nova <em style="color:var(--accent)">receita extra</em></h2>
+    <form onsubmit="saveIncomeExtra(event)">
+      <input type="hidden" id="incExtraId">
+      <div class="form-group">
+        <label class="form-label">Descrição</label>
+        <input type="text" class="form-input" id="incExtraDesc" required placeholder="Ex: Freela design, venda bicicleta">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Valor (R$)</label>
+          <input type="number" step="0.01" class="form-input" id="incExtraAmount" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data</label>
+          <input type="date" class="form-input" id="incExtraDate" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Observação (opcional)</label>
+        <input type="text" class="form-input" id="incExtraNote">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('incomeExtraModal')">Cancelar</button>
+        <button type="submit" class="btn">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- INCOME ADJUST MODAL -->
+<div class="modal-backdrop" id="incomeAdjustModal">
+  <div class="modal">
+    <h2 class="modal-title">Ajustar valor <em style="color:var(--accent)">deste mês</em></h2>
+
+    <div class="alert" style="background:rgba(245,180,82,0.06);border-color:rgba(245,180,82,0.2);margin-bottom:16px">
+      <div class="alert-icon" style="color:var(--warning)">i</div>
+      <div class="alert-content">
+        <div class="alert-text">
+          Esta edição altera <strong>apenas o valor deste mês</strong>. O template fixo continua o mesmo para meses futuros. Para mudar o valor permanentemente, vá em "Fixos".
+        </div>
+      </div>
+    </div>
+
+    <input type="hidden" id="adjIncomeTxId">
+    <div class="form-group">
+      <label class="form-label">Receita</label>
+      <div id="adjIncomeName" style="font-weight:600;font-size:14px"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Valor original do template</label>
+      <div id="adjIncomeOriginal" style="font-family:var(--mono);color:var(--ink-dim)"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Novo valor para este mês (R$)</label>
+      <input type="number" step="0.01" class="form-input" id="adjIncomeNewValue">
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModal('incomeAdjustModal')">Cancelar</button>
+      <button type="button" class="btn" onclick="saveIncomeAdjust()">Salvar ajuste</button>
+    </div>
   </div>
 </div>
 
@@ -2378,6 +2510,283 @@ function generateForCurrentMonth() {
   renderAll();
 }
 
+// ==================== INCOME PAGE ====================
+let incomeChart = null;
+
+function getIncomeData(monthKey) {
+  const txs = state.transactions.filter(t =>
+    getMonthKey(t.date) === monthKey && t.type === 'receita'
+  );
+  // Identificar fixas (vindas de template) vs extras
+  const fixed = txs.filter(t => t.recurringFromId);
+  const extra = txs.filter(t => !t.recurringFromId);
+  const total = txs.reduce((s,t) => s + t.amount, 0);
+  return { txs, fixed, extra, total };
+}
+
+function getPrevMonthKey(monthKey) {
+  const [y, m] = monthKey.split('-').map(Number);
+  let pm = m - 1;
+  let py = y;
+  if (pm === 0) { pm = 12; py = y - 1; }
+  return `${py}-${String(pm).padStart(2,'0')}`;
+}
+
+function renderIncome() {
+  const month = document.getElementById('incomeMonthSelector').value || state.currentMonth;
+  const { fixed, extra, total } = getIncomeData(month);
+
+  // KPIs
+  document.getElementById('incTotal').textContent = fmtBRL(total);
+  document.getElementById('incTotalSub').textContent = fmtMonth(month);
+
+  // vs mês anterior
+  const prevMonth = getPrevMonthKey(month);
+  const { total: prevTotal } = getIncomeData(prevMonth);
+  const incVsPrev = document.getElementById('incVsPrev');
+  const incVsPrevSub = document.getElementById('incVsPrevSub');
+  if (prevTotal === 0) {
+    incVsPrev.textContent = '—';
+    incVsPrev.className = 'kpi-value';
+    incVsPrevSub.textContent = `Sem dados de ${fmtMonth(prevMonth)}`;
+  } else {
+    const diff = total - prevTotal;
+    const pct = (diff / prevTotal * 100);
+    incVsPrev.textContent = (diff >= 0 ? '+' : '') + fmtBRL(diff);
+    incVsPrev.className = 'kpi-value ' + (diff >= 0 ? 'positive' : 'negative');
+    incVsPrevSub.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% vs ${fmtMonth(prevMonth)}`;
+  }
+
+  // Média 3 meses
+  const allMonths = getAvailableMonths();
+  const recentMonths = allMonths.slice(0, 3);
+  const recentTotals = recentMonths.map(m => getIncomeData(m).total).filter(t => t > 0);
+  const avg = recentTotals.length > 0 ? recentTotals.reduce((s,v)=>s+v,0) / recentTotals.length : 0;
+  document.getElementById('incAvg').textContent = fmtBRL(avg);
+
+  // Receitas fixas
+  const fixedEl = document.getElementById('fixedIncomesList');
+  // Buscar templates de receita aplicáveis ao mês
+  const incomeTemplates = (state.recurringTemplates || []).filter(t =>
+    t.type === 'receita' && (!t.endMonth || month <= t.endMonth)
+  );
+
+  if (incomeTemplates.length === 0) {
+    fixedEl.innerHTML = '<div class="empty">Nenhuma receita fixa cadastrada. Vá em <strong>Fixos</strong> para criar.</div>';
+  } else {
+    fixedEl.innerHTML = incomeTemplates.map(tpl => {
+      // Verificar se já tem lançamento gerado neste mês a partir desse template
+      const lancado = fixed.find(t => t.recurringFromId === tpl.id);
+      if (lancado) {
+        const valorAjustado = lancado.amount !== tpl.amount;
+        return `
+          <div class="debt-card">
+            <div class="debt-header">
+              <div>
+                <div class="debt-name">${tpl.desc}</div>
+                <div class="debt-meta">${valorAjustado ? `Ajustado · template: ${fmtBRL(tpl.amount)}` : 'Lançado conforme template'}</div>
+              </div>
+              <span class="tag success">recebido</span>
+            </div>
+            <div class="debt-numbers" style="margin-top:8px">
+              <span class="amount positive" style="font-size:15px;font-weight:600">${fmtBRL(lancado.amount)}</span>
+              <span>
+                <button class="btn-icon" onclick="openIncomeAdjustModal('${lancado.id}', '${tpl.id}')">ajustar valor</button>
+                <button class="btn-icon danger" onclick="deleteTransaction('${lancado.id}')">remover</button>
+              </span>
+            </div>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="debt-card" style="opacity:0.7">
+            <div class="debt-header">
+              <div>
+                <div class="debt-name">${tpl.desc}</div>
+                <div class="debt-meta">Ainda não lançado neste mês</div>
+              </div>
+              <span class="tag warning">pendente</span>
+            </div>
+            <div class="debt-numbers" style="margin-top:8px">
+              <span class="amount" style="font-size:15px;color:var(--ink-dim)">${fmtBRL(tpl.amount)}</span>
+              <button class="btn-sm btn" onclick="generateOneFixed('${tpl.id}', '${month}')">⚡ Lançar</button>
+            </div>
+          </div>
+        `;
+      }
+    }).join('');
+  }
+
+  // Receitas extras
+  const extraEl = document.getElementById('extraIncomesList');
+  if (extra.length === 0) {
+    extraEl.innerHTML = '<div class="empty">Nenhuma receita extra neste mês.<br><small style="color:var(--ink-muted)">Use o botão "+ Receita extra" para adicionar.</small></div>';
+  } else {
+    extraEl.innerHTML = extra.sort((a,b) => b.date.localeCompare(a.date)).map(t => `
+      <div class="debt-card">
+        <div class="debt-header">
+          <div>
+            <div class="debt-name">${t.desc}</div>
+            <div class="debt-meta">${fmtDate(t.date)}${t.note ? ' · ' + t.note : ''}</div>
+          </div>
+          <span class="tag success">extra</span>
+        </div>
+        <div class="debt-numbers" style="margin-top:8px">
+          <span class="amount positive" style="font-size:15px;font-weight:600">${fmtBRL(t.amount)}</span>
+          <span>
+            <button class="btn-icon" onclick="editTransaction('${t.id}')">editar</button>
+            <button class="btn-icon danger" onclick="deleteTransaction('${t.id}')">remover</button>
+          </span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Chart histórico
+  renderIncomeChart();
+}
+
+function renderIncomeChart() {
+  if (incomeChart) incomeChart.destroy();
+  const ctx = document.getElementById('incomeChart');
+  if (!ctx) return;
+
+  const months = getAvailableMonths().reverse();
+  const data = months.map(m => ({ key: m, total: getIncomeData(m).total }));
+
+  if (data.length === 0) return;
+
+  incomeChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => fmtMonth(d.key)),
+      datasets: [{
+        label: 'Receita',
+        data: data.map(d => d.total),
+        backgroundColor: '#c9f558',
+        borderRadius: 6,
+        barThickness: 28
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0f1410', borderColor: '#2a3329', borderWidth: 1,
+          titleColor: '#e8ebe6', bodyColor: '#a3aaa1',
+          callbacks: { label: (c) => fmtBRL(c.parsed.y) }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#222a23' }, ticks: { color: '#6a7268', font: { family: 'JetBrains Mono', size: 11 } } },
+        y: { grid: { color: '#222a23' }, ticks: { color: '#6a7268', font: { family: 'JetBrains Mono', size: 11 }, callback: v => 'R$ ' + (v/1000).toFixed(1) + 'k' } }
+      }
+    }
+  });
+}
+
+// Lançar 1 receita fixa específica em um mês
+function generateOneFixed(tplId, monthKey) {
+  const tpl = state.recurringTemplates.find(t => t.id === tplId);
+  if (!tpl) return;
+
+  const exists = state.transactions.some(t =>
+    getMonthKey(t.date) === monthKey && t.recurringFromId === tplId
+  );
+  if (exists) { toast('Esta receita já está lançada'); return; }
+
+  const [y, m] = monthKey.split('-');
+  const lastDayOfMonth = new Date(parseInt(y), parseInt(m), 0).getDate();
+  const day = Math.min(tpl.dayOfMonth || 5, lastDayOfMonth);
+  const date = `${monthKey}-${String(day).padStart(2,'0')}`;
+
+  state.transactions.push({
+    id: uid(),
+    type: tpl.type,
+    date,
+    desc: tpl.desc,
+    amount: tpl.amount,
+    category: tpl.category,
+    note: tpl.note || '',
+    recurringFromId: tpl.id
+  });
+  save();
+  renderAll();
+  toast('Receita lançada');
+}
+
+// Modal de ajustar valor de receita fixa neste mês
+function openIncomeAdjustModal(txId, tplId) {
+  const tx = state.transactions.find(t => t.id === txId);
+  const tpl = state.recurringTemplates.find(t => t.id === tplId);
+  if (!tx || !tpl) return;
+
+  document.getElementById('adjIncomeTxId').value = txId;
+  document.getElementById('adjIncomeName').textContent = tpl.desc;
+  document.getElementById('adjIncomeOriginal').textContent = fmtBRL(tpl.amount);
+  document.getElementById('adjIncomeNewValue').value = tx.amount;
+  document.getElementById('incomeAdjustModal').classList.add('show');
+}
+
+function saveIncomeAdjust() {
+  const id = document.getElementById('adjIncomeTxId').value;
+  const newValue = parseFloat(document.getElementById('adjIncomeNewValue').value);
+  if (!newValue || newValue <= 0) { alert('Valor inválido'); return; }
+  const idx = state.transactions.findIndex(t => t.id === id);
+  if (idx < 0) return;
+  state.transactions[idx].amount = newValue;
+  save();
+  closeModal('incomeAdjustModal');
+  renderAll();
+  toast('Valor ajustado para este mês');
+}
+
+// Modal de receita extra
+function openIncomeExtraModal(tx) {
+  document.getElementById('incExtraId').value = '';
+  if (tx) {
+    document.getElementById('incExtraId').value = tx.id;
+    document.getElementById('incExtraDesc').value = tx.desc;
+    document.getElementById('incExtraAmount').value = tx.amount;
+    document.getElementById('incExtraDate').value = tx.date;
+    document.getElementById('incExtraNote').value = tx.note || '';
+  } else {
+    document.getElementById('incExtraDesc').value = '';
+    document.getElementById('incExtraAmount').value = '';
+    const month = document.getElementById('incomeMonthSelector').value || state.currentMonth;
+    document.getElementById('incExtraDate').value = month + '-' + String(new Date().getDate()).padStart(2,'0');
+    document.getElementById('incExtraNote').value = '';
+  }
+  document.getElementById('incomeExtraModal').classList.add('show');
+}
+
+function saveIncomeExtra(event) {
+  event.preventDefault();
+  const id = document.getElementById('incExtraId').value;
+  const tx = {
+    id: id || uid(),
+    type: 'receita',
+    date: document.getElementById('incExtraDate').value,
+    desc: document.getElementById('incExtraDesc').value,
+    amount: parseFloat(document.getElementById('incExtraAmount').value),
+    category: 'Receita',
+    note: document.getElementById('incExtraNote').value
+  };
+  if (id) {
+    const idx = state.transactions.findIndex(t => t.id === id);
+    state.transactions[idx] = tx;
+  } else {
+    state.transactions.push(tx);
+  }
+  save();
+  closeModal('incomeExtraModal');
+  renderAll();
+  toast(id ? 'Receita atualizada' : 'Receita adicionada');
+}
+
+// ==================== INCOME PAGE — END ====================
+
 // ==================== GOOGLE SHEETS IMPORT ====================
 
 function openSheetImportModal() {
@@ -2854,6 +3263,7 @@ function showPage(name) {
   document.querySelector(`.nav-item[data-page="${name}"]`)?.classList.add('active');
 
   if (name === 'overview') renderOverview();
+  if (name === 'income') renderIncome();
   if (name === 'transactions') renderTransactions();
   if (name === 'categories') renderCategories();
   if (name === 'evolution') renderEvolution();
@@ -2873,7 +3283,7 @@ function toast(msg) {
 
 function populateMonthSelectors() {
   const months = getAvailableMonths();
-  ['monthSelector', 'catMonthSelector'].forEach(id => {
+  ['monthSelector', 'catMonthSelector', 'incomeMonthSelector'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = months.map(m => `<option value="${m}">${fmtMonth(m)}</option>`).join('');
@@ -2884,6 +3294,7 @@ function populateMonthSelectors() {
 function renderAll() {
   populateMonthSelectors();
   renderOverview();
+  renderIncome();
   renderTransactions();
   renderCategories();
   renderEvolution();
@@ -2922,6 +3333,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderOverview();
   });
   document.getElementById('catMonthSelector').addEventListener('change', () => renderCategories());
+  document.getElementById('incomeMonthSelector').addEventListener('change', () => renderIncome());
 
   // Close modal on backdrop click
   document.querySelectorAll('.modal-backdrop').forEach(m => {
