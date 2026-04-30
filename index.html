@@ -800,6 +800,7 @@
     <div class="nav-item" data-page="transactions"><span class="dot"></span> Lançamentos</div>
     <div class="nav-item" data-page="categories"><span class="dot"></span> Categorias</div>
     <div class="nav-item" data-page="evolution"><span class="dot"></span> Evolução</div>
+    <div class="nav-item" data-page="compare"><span class="dot"></span> Comparativo</div>
 
     <div class="nav-group-label">Compromissos</div>
     <div class="nav-item" data-page="debts"><span class="dot"></span> Dívidas</div>
@@ -1050,6 +1051,72 @@
             </tr>
           </thead>
           <tbody id="evolutionTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============== COMPARE ============== -->
+    <section class="page" id="page-compare">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Comparativo <em>entre meses</em></h1>
+        </div>
+      </div>
+
+      <div class="section">
+        <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:16px;align-items:end;margin-bottom:8px">
+          <div>
+            <label class="form-label">Mês A</label>
+            <select class="month-selector" id="compareMonthA" style="width:100%"></select>
+          </div>
+          <div style="text-align:center;font-family:var(--display);font-size:24px;color:var(--ink-muted);padding-bottom:8px">vs</div>
+          <div>
+            <label class="form-label">Mês B</label>
+            <select class="month-selector" id="compareMonthB" style="width:100%"></select>
+          </div>
+        </div>
+      </div>
+
+      <div id="compareInsight"></div>
+
+      <div class="section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Visão <em>geral</em></h2>
+            <div class="section-sub">Receita, despesa e saldo</div>
+          </div>
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th></th>
+              <th class="amount" id="compareHeaderA">Mês A</th>
+              <th class="amount" id="compareHeaderB">Mês B</th>
+              <th class="amount">Diferença</th>
+            </tr>
+          </thead>
+          <tbody id="compareGeneralTable"></tbody>
+        </table>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Despesas por <em>categoria</em></h2>
+            <div class="section-sub">Onde aumentou, onde diminuiu</div>
+          </div>
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Categoria</th>
+              <th class="amount" id="compareHeaderA2">Mês A</th>
+              <th class="amount" id="compareHeaderB2">Mês B</th>
+              <th class="amount">Diferença</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="compareCategoryTable"></tbody>
         </table>
       </div>
     </section>
@@ -2510,6 +2577,202 @@ function generateForCurrentMonth() {
   renderAll();
 }
 
+// ==================== COMPARE PAGE ====================
+function renderCompare() {
+  const monthA = document.getElementById('compareMonthA').value;
+  const monthB = document.getElementById('compareMonthB').value;
+  if (!monthA || !monthB) return;
+
+  const dataA = getMonthData(monthA);
+  const dataB = getMonthData(monthB);
+
+  // Headers
+  document.getElementById('compareHeaderA').textContent = fmtMonth(monthA);
+  document.getElementById('compareHeaderB').textContent = fmtMonth(monthB);
+  document.getElementById('compareHeaderA2').textContent = fmtMonth(monthA);
+  document.getElementById('compareHeaderB2').textContent = fmtMonth(monthB);
+
+  // Tabela geral
+  const rows = [
+    { label: 'Receita', a: dataA.receita, b: dataB.receita, betterIfBigger: true },
+    { label: 'Despesa', a: dataA.despesa, b: dataB.despesa, betterIfBigger: false },
+    { label: 'Saldo do mês', a: dataA.saldo, b: dataB.saldo, betterIfBigger: true, isSaldo: true }
+  ];
+
+  document.getElementById('compareGeneralTable').innerHTML = rows.map(r => {
+    const diff = r.b - r.a;
+    const pct = r.a !== 0 ? (diff / Math.abs(r.a) * 100) : 0;
+    const isImproving = r.betterIfBigger ? diff > 0 : diff < 0;
+    const diffClass = diff === 0 ? '' : (isImproving ? 'positive' : 'negative');
+    const diffSign = diff > 0 ? '+' : '';
+    const aClass = r.isSaldo && r.a < 0 ? 'negative' : (r.label === 'Receita' ? 'positive' : '');
+    const bClass = r.isSaldo && r.b < 0 ? 'negative' : (r.label === 'Receita' ? 'positive' : '');
+
+    return `
+      <tr>
+        <td style="font-weight:500">${r.label}</td>
+        <td class="amount ${aClass}">${fmtBRL(r.a)}</td>
+        <td class="amount ${bClass}">${fmtBRL(r.b)}</td>
+        <td class="amount ${diffClass}" style="font-weight:600">
+          ${diffSign}${fmtBRL(diff)}
+          ${r.a !== 0 ? `<div style="font-size:11px;color:var(--ink-muted);font-weight:400;margin-top:2px">${diffSign}${pct.toFixed(1)}%</div>` : ''}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // Tabela por categoria
+  const catsA = getCategoryBreakdown(monthA);
+  const catsB = getCategoryBreakdown(monthB);
+
+  // Mesclar todas as categorias
+  const allCats = new Set([...catsA.map(c => c.cat), ...catsB.map(c => c.cat)]);
+  const catRows = [...allCats].map(cat => {
+    const a = catsA.find(c => c.cat === cat)?.val || 0;
+    const b = catsB.find(c => c.cat === cat)?.val || 0;
+    return { cat, a, b, diff: b - a };
+  }).sort((x, y) => Math.abs(y.diff) - Math.abs(x.diff)); // ordenar por maior variação
+
+  document.getElementById('compareCategoryTable').innerHTML = catRows.length === 0
+    ? '<tr><td colspan="5" class="empty">Sem despesas em nenhum dos meses.</td></tr>'
+    : catRows.map(r => {
+        const pct = r.a !== 0 ? (r.diff / r.a * 100) : (r.b > 0 ? 100 : 0);
+        const isImproving = r.diff < 0; // gastar menos é bom
+        const diffClass = r.diff === 0 ? '' : (isImproving ? 'positive' : 'negative');
+        const diffSign = r.diff > 0 ? '+' : '';
+        const indicator = r.diff === 0 ? '=' : (isImproving ? '↓' : '↑');
+        const indicatorColor = r.diff === 0 ? 'var(--ink-muted)' : (isImproving ? 'var(--accent)' : 'var(--danger)');
+
+        return `
+          <tr>
+            <td style="font-weight:500">${r.cat}</td>
+            <td class="amount" style="color:var(--ink-dim)">${fmtBRL(r.a)}</td>
+            <td class="amount" style="color:var(--ink-dim)">${fmtBRL(r.b)}</td>
+            <td class="amount ${diffClass}" style="font-weight:600">
+              ${diffSign}${fmtBRL(r.diff)}
+              ${r.a !== 0 ? `<div style="font-size:11px;color:var(--ink-muted);font-weight:400;margin-top:2px">${diffSign}${pct.toFixed(1)}%</div>` : ''}
+            </td>
+            <td style="text-align:center;font-size:18px;color:${indicatorColor};font-family:var(--mono)">${indicator}</td>
+          </tr>
+        `;
+      }).join('');
+
+  // Insight automático
+  renderCompareInsight(monthA, monthB, dataA, dataB, catRows);
+}
+
+function renderCompareInsight(monthA, monthB, dataA, dataB, catRows) {
+  const el = document.getElementById('compareInsight');
+  if (!el) return;
+
+  // Caso 1: meses iguais
+  if (monthA === monthB) {
+    el.innerHTML = `
+      <div class="alert warning">
+        <div class="alert-icon">i</div>
+        <div class="alert-content">
+          <div class="alert-title">Selecione dois meses diferentes</div>
+          <div class="alert-text">Os dois seletores estão no mesmo mês — escolha meses diferentes para comparar.</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Caso 2: algum mês sem dados
+  if (dataA.receita === 0 && dataA.despesa === 0) {
+    el.innerHTML = `
+      <div class="alert warning">
+        <div class="alert-icon">i</div>
+        <div class="alert-content">
+          <div class="alert-title">Sem dados em ${fmtMonth(monthA)}</div>
+          <div class="alert-text">Não há lançamentos nesse mês para comparar.</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  if (dataB.receita === 0 && dataB.despesa === 0) {
+    el.innerHTML = `
+      <div class="alert warning">
+        <div class="alert-icon">i</div>
+        <div class="alert-content">
+          <div class="alert-title">Sem dados em ${fmtMonth(monthB)}</div>
+          <div class="alert-text">Não há lançamentos nesse mês para comparar.</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Caso 3: insight com dados reais
+  const diffSaldo = dataB.saldo - dataA.saldo;
+  const cortes = catRows.filter(r => r.diff < -50).slice(0, 3);
+  const aumentos = catRows.filter(r => r.diff > 50).slice(0, 3);
+
+  let insightTitle = '';
+  let insightText = '';
+  let insightType = 'success';
+
+  if (diffSaldo > 100) {
+    insightTitle = `Você melhorou em ${fmtBRL(diffSaldo)} — ${fmtMonth(monthB)} foi melhor que ${fmtMonth(monthA)}`;
+    insightType = 'success';
+  } else if (diffSaldo < -100) {
+    insightTitle = `Você piorou em ${fmtBRL(Math.abs(diffSaldo))} — ${fmtMonth(monthB)} foi pior que ${fmtMonth(monthA)}`;
+    insightType = 'warning';
+  } else {
+    insightTitle = `${fmtMonth(monthB)} vs ${fmtMonth(monthA)}: variação pequena (${fmtBRL(diffSaldo)})`;
+    insightType = 'warning';
+  }
+
+  const partes = [];
+  if (cortes.length > 0) {
+    const totalCortes = cortes.reduce((s, c) => s + Math.abs(c.diff), 0);
+    partes.push(`Você economizou em <strong>${cortes.map(c => c.cat).join(', ')}</strong> (-${fmtBRL(totalCortes)})`);
+  }
+  if (aumentos.length > 0) {
+    const totalAumentos = aumentos.reduce((s, a) => s + a.diff, 0);
+    partes.push(`Aumentou em <strong>${aumentos.map(a => a.cat).join(', ')}</strong> (+${fmtBRL(totalAumentos)})`);
+  }
+
+  if (partes.length === 0) {
+    partes.push('As categorias se mantiveram estáveis. Verifique a tabela abaixo para detalhes.');
+  }
+
+  insightText = partes.join('. ') + '.';
+
+  el.innerHTML = `
+    <div class="alert ${insightType}">
+      <div class="alert-icon">${insightType === 'success' ? '✓' : '~'}</div>
+      <div class="alert-content">
+        <div class="alert-title">${insightTitle}</div>
+        <div class="alert-text">${insightText}</div>
+      </div>
+    </div>
+  `;
+}
+
+function populateCompareSelectors() {
+  const months = getAvailableMonths();
+  const selA = document.getElementById('compareMonthA');
+  const selB = document.getElementById('compareMonthB');
+  if (!selA || !selB) return;
+
+  selA.innerHTML = months.map(m => `<option value="${m}">${fmtMonth(m)}</option>`).join('');
+  selB.innerHTML = months.map(m => `<option value="${m}">${fmtMonth(m)}</option>`).join('');
+
+  // Defaults inteligentes: B = mês atual, A = mês anterior
+  if (months.length >= 2) {
+    selB.value = months[0];
+    selA.value = months[1];
+  } else if (months.length === 1) {
+    selA.value = months[0];
+    selB.value = months[0];
+  }
+}
+
+// ==================== COMPARE PAGE — END ====================
+
 // ==================== INCOME PAGE ====================
 let incomeChart = null;
 
@@ -3267,6 +3530,7 @@ function showPage(name) {
   if (name === 'transactions') renderTransactions();
   if (name === 'categories') renderCategories();
   if (name === 'evolution') renderEvolution();
+  if (name === 'compare') { populateCompareSelectors(); renderCompare(); }
   if (name === 'debts') renderDebts();
   if (name === 'upcoming') renderUpcoming();
   if (name === 'recurring') renderTemplates();
@@ -3334,6 +3598,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('catMonthSelector').addEventListener('change', () => renderCategories());
   document.getElementById('incomeMonthSelector').addEventListener('change', () => renderIncome());
+  document.getElementById('compareMonthA').addEventListener('change', () => renderCompare());
+  document.getElementById('compareMonthB').addEventListener('change', () => renderCompare());
 
   // Close modal on backdrop click
   document.querySelectorAll('.modal-backdrop').forEach(m => {
