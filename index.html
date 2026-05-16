@@ -2150,6 +2150,13 @@ function renderTransactions() {
 }
 
 // ==================== RENDER: CATEGORIES ====================
+let expandedCategory = null; // categoria atualmente expandida
+
+function toggleCategoryExpand(cat) {
+  expandedCategory = (expandedCategory === cat) ? null : cat;
+  renderCategories();
+}
+
 function renderCategories() {
   const month = document.getElementById('catMonthSelector').value || state.currentMonth;
   const cats = getCategoryBreakdown(month);
@@ -2200,34 +2207,96 @@ function renderCategories() {
     });
   }
 
-  // Tabela detalhada
+  // Tabela detalhada com drill-down
   const detail = document.getElementById('categoryDetail');
   if (cats.length === 0) {
     detail.innerHTML = '<div class="empty">Sem despesas neste mês.</div>';
-  } else {
-    detail.innerHTML = `
-      <table class="table">
-        <thead>
-          <tr><th>Categoria</th><th class="amount">Total</th><th class="amount">% do total</th><th>Distribuição</th></tr>
-        </thead>
-        <tbody>
-          ${cats.map(c => {
-            const pct = (c.val/total*100);
-            return `
+    return;
+  }
+
+  // Buscar despesas do mês para o drill-down
+  const monthTxs = state.transactions.filter(t =>
+    getMonthKey(t.date) === month && t.type === 'despesa'
+  );
+
+  detail.innerHTML = `
+    <div style="font-size:11.5px;color:var(--ink-muted);font-family:var(--mono);margin-bottom:8px;padding:0 4px">
+      Clique em uma categoria para ver os lançamentos
+    </div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="width:30px"></th>
+          <th>Categoria</th>
+          <th class="amount">Total</th>
+          <th class="amount">% do total</th>
+          <th>Distribuição</th>
+          <th style="text-align:right">Itens</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${cats.map(c => {
+          const pct = (c.val/total*100);
+          const isExpanded = expandedCategory === c.cat;
+          const txs = monthTxs.filter(t => t.category === c.cat).sort((a,b) => b.amount - a.amount);
+          const catEscaped = c.cat.replace(/'/g, "\\'");
+
+          let rows = `
+            <tr style="cursor:pointer;${isExpanded ? 'background:var(--bg-elev-2)' : ''}" onclick="toggleCategoryExpand('${catEscaped}')">
+              <td style="text-align:center;font-family:var(--mono);color:var(--accent);font-size:12px">${isExpanded ? '▼' : '▶'}</td>
+              <td style="font-weight:500">${c.cat}</td>
+              <td class="amount">${fmtBRL(c.val)}</td>
+              <td class="amount" style="color:var(--ink-dim)">${pct.toFixed(1)}%</td>
+              <td style="width:25%">
+                <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${pct}%"></div></div>
+              </td>
+              <td style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--ink-muted)">${txs.length}</td>
+            </tr>
+          `;
+
+          // Linha expandida com lançamentos
+          if (isExpanded && txs.length > 0) {
+            rows += `
               <tr>
-                <td style="font-weight:500">${c.cat}</td>
-                <td class="amount">${fmtBRL(c.val)}</td>
-                <td class="amount" style="color:var(--ink-dim)">${pct.toFixed(1)}%</td>
-                <td style="width:30%">
-                  <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${pct}%"></div></div>
+                <td colspan="6" style="padding:0;background:var(--bg)">
+                  <div style="padding:8px 16px 16px 50px">
+                    <table style="width:100%;border-collapse:collapse">
+                      <thead>
+                        <tr>
+                          <th style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ink-muted);padding:8px 10px;text-align:left;font-weight:500">Data</th>
+                          <th style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ink-muted);padding:8px 10px;text-align:left;font-weight:500">Descrição</th>
+                          <th style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ink-muted);padding:8px 10px;text-align:right;font-weight:500">Valor</th>
+                          <th style="width:90px"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${txs.map(t => `
+                          <tr>
+                            <td style="padding:8px 10px;font-family:var(--mono);font-size:11.5px;color:var(--ink-muted);border-bottom:1px solid var(--border-soft)">${fmtDate(t.date)}</td>
+                            <td style="padding:8px 10px;font-size:13px;border-bottom:1px solid var(--border-soft)">
+                              ${t.desc}
+                              ${t.note ? `<div style="font-size:10.5px;color:var(--ink-muted);margin-top:2px">${t.note}</div>` : ''}
+                            </td>
+                            <td class="amount" style="padding:8px 10px;font-size:13px;border-bottom:1px solid var(--border-soft)">${fmtBRL(t.amount)}</td>
+                            <td style="padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border-soft)">
+                              <button class="btn-icon" onclick="event.stopPropagation();editTransaction('${t.id}')">editar</button>
+                              <button class="btn-icon danger" onclick="event.stopPropagation();deleteTransaction('${t.id}')">excluir</button>
+                            </td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                  </div>
                 </td>
               </tr>
             `;
-          }).join('')}
-        </tbody>
-      </table>
-    `;
-  }
+          }
+
+          return rows;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 // ==================== RENDER: EVOLUTION ====================
