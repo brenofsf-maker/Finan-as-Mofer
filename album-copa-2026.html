@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Álbum Copa 2026</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#0d1117; --card:#161b22; --line:#21262d; --txt:#e6edf3;
+    --muted:#8b949e; --gold:#d4af37; --green:#2ea043; --greenbg:#0f2a17;
+    --accent:#1f6feb; --warn:#7d4a00; --warnbg:#2a1d05;
+  }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--txt); padding-bottom:96px; }
+  header{ position:sticky; top:0; z-index:20; background:linear-gradient(180deg,#161b22,#0d1117);
+    border-bottom:1px solid var(--line); padding:14px 16px 10px; }
+  h1{ font-size:17px; letter-spacing:.4px; display:flex; align-items:center; gap:8px; }
+  .global-bar{ margin-top:10px; }
+  .pct{ display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:5px; }
+  .pct b{ color:var(--gold); }
+  .track{ height:7px; background:var(--line); border-radius:10px; overflow:hidden; }
+  .fill{ height:100%; background:linear-gradient(90deg,var(--gold),#f4d774); width:0%; transition:width .3s; }
+  .search{ margin-top:10px; width:100%; padding:9px 12px; border-radius:10px;
+    border:1px solid var(--line); background:var(--card); color:var(--txt); font-size:14px; }
+  .search::placeholder{ color:var(--muted); }
+  #warn{ display:none; margin:8px 16px 0; padding:8px 10px; font-size:12px; border-radius:8px;
+    background:var(--warnbg); color:#f0c674; border:1px solid var(--warn); }
+  .group-label{ font-size:11px; font-weight:700; letter-spacing:1px; color:var(--muted);
+    padding:16px 16px 4px; text-transform:uppercase; }
+  .team{ border-bottom:1px solid var(--line); }
+  .team-head{ display:flex; align-items:center; gap:10px; padding:12px 16px; cursor:pointer; }
+  .grp{ font-size:10px; font-weight:700; background:var(--line); color:var(--muted);
+    border-radius:5px; padding:2px 6px; min-width:20px; text-align:center; }
+  .flag{ font-size:22px; }
+  .team-name{ flex:1; font-size:14px; font-weight:600; }
+  .team-count{ font-size:11px; color:var(--muted); }
+  .team-count.done{ color:var(--green); font-weight:600; }
+  .chev{ color:var(--muted); transition:transform .2s; font-size:12px; }
+  .team.open .chev{ transform:rotate(90deg); }
+  .mini-track{ height:4px; background:var(--line); border-radius:6px; flex-basis:42px; overflow:hidden; }
+  .mini-fill{ height:100%; background:var(--green); width:0%; }
+  .stickers{ display:none; grid-template-columns:repeat(5,1fr); gap:7px; padding:4px 16px 14px; }
+  .team.open .stickers{ display:grid; }
+  .st{ aspect-ratio:3/4; border-radius:7px; border:1px solid var(--line); background:var(--card);
+    display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;
+    color:var(--muted); cursor:pointer; user-select:none; transition:all .12s; position:relative; }
+  .st.cover{ border-style:dashed; }
+  .st.has{ background:var(--greenbg); border-color:var(--green); color:#7ee2a0; }
+  .st.has::after{ content:"✓"; position:absolute; top:2px; right:4px; font-size:9px; color:var(--green); }
+  .st:active{ transform:scale(.92); }
+  .bulk{ grid-column:1/-1; display:flex; gap:8px; margin-top:2px; }
+  .bulk button{ flex:1; padding:7px; font-size:11px; border-radius:8px; border:1px solid var(--line);
+    background:var(--card); color:var(--muted); cursor:pointer; }
+  footer{ position:fixed; bottom:0; left:0; right:0; background:#161b22ee; backdrop-filter:blur(8px);
+    border-top:1px solid var(--line); padding:12px 16px; display:flex; gap:8px; }
+  footer button{ flex:1; padding:11px; border-radius:10px; border:none; font-size:13px; font-weight:600; cursor:pointer; }
+  .btn-faltam{ background:var(--accent); color:#fff; }
+  .btn-reset{ background:var(--card); color:var(--muted); border:1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚽ Álbum FIFA World Cup 2026</h1>
+  <div class="global-bar">
+    <div class="pct"><span>Progresso geral</span><span><b id="gNum">0</b> / <span id="gTot">0</span></span></div>
+    <div class="track"><div class="fill" id="gFill"></div></div>
+  </div>
+  <input class="search" id="search" placeholder="🔍 Buscar seleção ou seção...">
+  <div id="warn">⚠️ Não foi possível salvar neste navegador. Suas marcações valem só nesta sessão.</div>
+</header>
+<div id="list"></div>
+<footer>
+  <button class="btn-faltam" id="toggleFaltam">Mostrar só o que falta</button>
+  <button class="btn-reset" id="reset">Zerar</button>
+</footer>
+<script>
+const PER_TEAM = 20;
+const TEAMS = [
+  ["A",8,"🇲🇽","México"],["A",10,"🇿🇦","África do Sul"],["A",12,"🇰🇷","Coreia do Sul"],["A",14,"🇨🇿","Tchéquia"],
+  ["B",16,"🇨🇦","Canadá"],["B",18,"🇧🇦","Bósnia-Herzegovina"],["B",20,"🇶🇦","Catar"],["B",22,"🇨🇭","Suíça"],
+  ["C",24,"🇧🇷","Brasil"],["C",26,"🇲🇦","Marrocos"],["C",28,"🇭🇹","Haiti"],["C",30,"🏴󠁧󠁢󠁳󠁣󠁴󠁿","Escócia"],
+  ["D",32,"🇺🇸","Estados Unidos"],["D",34,"🇵🇾","Paraguai"],["D",36,"🇦🇺","Austrália"],["D",38,"🇹🇷","Türkiye"],
+  ["E",40,"🇩🇪","Alemanha"],["E",42,"🇨🇼","Curaçao"],["E",44,"🇨🇮","Costa do Marfim"],["E",46,"🇪🇨","Equador"],
+  ["F",48,"🇳🇱","Holanda"],["F",50,"🇯🇵","Japão"],["F",52,"🇸🇪","Suécia"],["F",54,"🇹🇳","Tunísia"],
+  ["G",58,"🇧🇪","Bélgica"],["G",60,"🇪🇬","Egito"],["G",62,"🇮🇷","Irã"],["G",64,"🇳🇿","Nova Zelândia"],
+  ["H",66,"🇪🇸","Espanha"],["H",68,"🇨🇻","Cabo Verde"],["H",70,"🇸🇦","Arábia Saudita"],["H",72,"🇺🇾","Uruguai"],
+  ["I",74,"🇫🇷","França"],["I",76,"🇸🇳","Senegal"],["I",78,"🇮🇶","Iraque"],["I",80,"🇳🇴","Noruega"],
+  ["J",82,"🇦🇷","Argentina"],["J",84,"🇩🇿","Argélia"],["J",86,"🇦🇹","Áustria"],["J",88,"🇯🇴","Jordânia"],
+  ["K",90,"🇵🇹","Portugal"],["K",92,"🇨🇩","Congo DR"],["K",94,"🇺🇿","Uzbequistão"],["K",96,"🇨🇴","Colômbia"],
+  ["L",98,"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Inglaterra"],["L",100,"🇭🇷","Croácia"],["L",102,"🇬🇭","Gana"],["L",104,"🇵🇦","Panamá"]
+];
+const SPECIALS = [
+  ["intro","🏆","Abertura (emblema, troféu, bola, logos)",10],
+  ["host","🌎","Host Countries & Cities (CAN/MEX/USA)",16],
+  ["history","📜","FIFA World Cup History (Museu)",40],
+  ["coke","🥤","Coca-Cola / Classic Coke (CC1–CC14)",14]
+];
+let state={}, onlyFaltam=false, canStore=true; const openSet=new Set();
+function load(){
+  try{ const r=localStorage.getItem("copa2026v2"); state=r?JSON.parse(r):{}; }
+  catch(e){ canStore=false; state={}; document.getElementById("warn").style.display="block"; }
+}
+function save(){
+  if(!canStore) return;
+  try{ localStorage.setItem("copa2026v2", JSON.stringify(state)); }
+  catch(e){ canStore=false; document.getElementById("warn").style.display="block"; }
+}
+function key(id,n){ return id+"_"+n; }
+function count(id,total){ let c=0; for(let n=1;n<=total;n++) if(state[key(id,n)]) c++; return c; }
+function render(){
+  const list=document.getElementById("list"); list.innerHTML="";
+  const q=document.getElementById("search").value.toLowerCase().trim();
+  let gHave=0, gTot=TEAMS.length*PER_TEAM; SPECIALS.forEach(s=>gTot+=s[3]);
+  let curGroup="";
+  TEAMS.forEach((tm,ti)=>{
+    const [grp,num,flag,name]=tm;
+    const have=count("t"+ti,PER_TEAM); gHave+=have;
+    if(q && !name.toLowerCase().includes(q) && !("grupo "+grp).toLowerCase().includes(q)) return;
+    if(grp!==curGroup && !q){ curGroup=grp;
+      const gl=document.createElement("div"); gl.className="group-label"; gl.textContent="Grupo "+grp; list.appendChild(gl); }
+    list.appendChild(block("t"+ti,grp,flag,name,PER_TEAM,have,num,false));
+  });
+  if(!q){ const gl=document.createElement("div"); gl.className="group-label"; gl.textContent="Páginas especiais"; list.appendChild(gl); }
+  SPECIALS.forEach((s,si)=>{
+    const [id,icon,name,total]=s; const have=count("s"+si,total); gHave+=have;
+    if(q && !name.toLowerCase().includes(q) && !"especiais".includes(q)) return;
+    list.appendChild(block("s"+si,icon,null,name,total,have,null,true,id));
+  });
+  document.getElementById("gNum").textContent=gHave;
+  document.getElementById("gTot").textContent=gTot;
+  document.getElementById("gFill").style.width=(gHave/gTot*100)+"%";
+}
+function block(id,badge,flag,name,total,have,startNum,isSpecial,specialId){
+  const done=have===total, pct=Math.round(have/total*100);
+  const team=document.createElement("div"); team.className="team"+(openSet.has(id)?" open":"");
+  const badgeHtml = flag ? `<span class="grp">${badge}</span><span class="flag">${flag}</span>` : `<span class="flag">${badge}</span>`;
+  team.innerHTML=`<div class="team-head" data-id="${id}">${badgeHtml}
+      <span class="team-name">${name}</span>
+      <div class="mini-track"><div class="mini-fill" style="width:${pct}%"></div></div>
+      <span class="team-count ${done?'done':''}">${have}/${total}</span>
+      <span class="chev">▶</span></div>`;
+  const grid=document.createElement("div"); grid.className="stickers";
+  for(let n=1;n<=total;n++){
+    const has=!!state[key(id,n)]; if(onlyFaltam && has) continue;
+    const st=document.createElement("div");
+    const isCover=!isSpecial && n===1;
+    st.className="st"+(isCover?" cover":"")+(has?" has":"");
+    st.textContent = (!isSpecial && startNum!=null) ? (startNum+(n-1)) : (specialId==="coke"? "CC"+n : n);
+    st.dataset.id=id; st.dataset.n=n; grid.appendChild(st);
+  }
+  const bulk=document.createElement("div"); bulk.className="bulk";
+  bulk.innerHTML=`<button data-all="${id}" data-tot="${total}">Marcar todas</button><button data-none="${id}" data-tot="${total}">Limpar</button>`;
+  grid.appendChild(bulk); team.appendChild(grid); return team;
+}
+document.addEventListener("click",e=>{
+  const head=e.target.closest(".team-head");
+  if(head){ const id=head.dataset.id; openSet.has(id)?openSet.delete(id):openSet.add(id); render(); return; }
+  const st=e.target.closest(".st");
+  if(st){ const k=key(st.dataset.id,+st.dataset.n); state[k]?delete state[k]:state[k]=1; save(); render(); return; }
+  if(e.target.dataset.all!==undefined){ const id=e.target.dataset.all,t=+e.target.dataset.tot; for(let n=1;n<=t;n++) state[key(id,n)]=1; save(); render(); return; }
+  if(e.target.dataset.none!==undefined){ const id=e.target.dataset.none,t=+e.target.dataset.tot; for(let n=1;n<=t;n++) delete state[key(id,n)]; save(); render(); return; }
+});
+document.getElementById("search").addEventListener("input",render);
+document.getElementById("toggleFaltam").addEventListener("click",e=>{
+  onlyFaltam=!onlyFaltam; e.target.textContent=onlyFaltam?"Mostrar todas":"Mostrar só o que falta";
+  e.target.style.background=onlyFaltam?"#2ea043":""; render();
+});
+document.getElementById("reset").addEventListener("click",()=>{ if(confirm("Zerar todas as figurinhas marcadas?")){ state={}; save(); render(); } });
+load(); render();
+</script>
+</body>
+</html>
