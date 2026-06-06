@@ -206,7 +206,7 @@ function bulk(id,total){
 
 document.addEventListener("click",e=>{
   const head=e.target.closest(".team-head");
-  if(head){ const id=head.dataset.id; openSet.has(id)?openSet.delete(id):openSet.add(id); render(); return; }
+  if(head){ const id=head.dataset.id; if(openSet.has(id)){ openSet.delete(id); } else { openSet.clear(); openSet.add(id); } render(); return; }
   const st=e.target.closest(".st");
   if(st){ const k=key(st.dataset.id,+st.dataset.n); state[k]?delete state[k]:state[k]=1; save(); render(); return; }
   if(e.target.dataset.all!==undefined){ const id=e.target.dataset.all,t=+e.target.dataset.tot; for(let n=1;n<=t;n++) state[key(id,n)]=1; save(); render(); return; }
