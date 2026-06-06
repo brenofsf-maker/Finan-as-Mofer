@@ -55,10 +55,22 @@
   .bulk button{ flex:1; padding:7px; font-size:11px; border-radius:8px; border:1px solid var(--line);
     background:var(--card); color:var(--muted); cursor:pointer; }
   footer{ position:fixed; bottom:0; left:0; right:0; background:#ffffffee; backdrop-filter:blur(8px);
-    border-top:1px solid var(--line); padding:12px 16px; display:flex; gap:8px; }
-  footer button{ flex:1; padding:11px; border-radius:10px; border:none; font-size:13px; font-weight:600; cursor:pointer; }
+    border-top:1px solid var(--line); padding:10px 12px; display:flex; flex-wrap:wrap; gap:6px; }
+  footer button{ flex:1 1 40%; padding:10px; border-radius:10px; border:none; font-size:12px; font-weight:600; cursor:pointer; }
   .btn-faltam{ background:var(--accent); color:#fff; }
+  .btn-sync{ background:var(--card); color:var(--txt); border:1px solid var(--line); }
   .btn-reset{ background:var(--card); color:var(--muted); border:1px solid var(--line); }
+  #modal{ display:none; position:fixed; inset:0; z-index:50; background:#0007;
+    align-items:center; justify-content:center; padding:20px; }
+  #modal.show{ display:flex; }
+  .modal-box{ background:#fff; border-radius:14px; padding:18px; width:100%; max-width:420px;
+    border:1px solid var(--line); }
+  .modal-title{ font-size:16px; font-weight:700; margin-bottom:6px; }
+  .modal-desc{ font-size:13px; color:var(--muted); margin-bottom:10px; line-height:1.4; }
+  #modalArea{ width:100%; height:120px; border:1px solid var(--line); border-radius:10px;
+    padding:10px; font-size:12px; font-family:monospace; resize:none; background:var(--card); color:var(--txt); }
+  .modal-actions{ display:flex; gap:8px; margin-top:12px; }
+  .modal-actions button{ flex:1; padding:11px; border-radius:10px; border:none; font-size:13px; font-weight:600; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -74,8 +86,22 @@
 <div id="list"></div>
 <footer>
   <button class="btn-faltam" id="toggleFaltam">Mostrar só o que falta</button>
+  <button class="btn-sync" id="exportBtn">Exportar</button>
+  <button class="btn-sync" id="importBtn">Importar</button>
   <button class="btn-reset" id="reset">Zerar</button>
 </footer>
+
+<div id="modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle">Backup</div>
+    <p class="modal-desc" id="modalDesc"></p>
+    <textarea id="modalArea" placeholder="Cole aqui o código do backup..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-reset" id="modalCancel">Fechar</button>
+      <button class="btn-faltam" id="modalOk">Confirmar</button>
+    </div>
+  </div>
+</div>
 <script>
 const PER_TEAM = 20;
 const TEAMS = [
@@ -218,6 +244,55 @@ document.getElementById("toggleFaltam").addEventListener("click",e=>{
   e.target.style.background=onlyFaltam?"#2ea043":""; render();
 });
 document.getElementById("reset").addEventListener("click",()=>{ if(confirm("Zerar todas as figurinhas marcadas?")){ state={}; save(); render(); } });
+
+// ---- Exportar / Importar ----
+const modal=document.getElementById("modal");
+const mTitle=document.getElementById("modalTitle");
+const mDesc=document.getElementById("modalDesc");
+const mArea=document.getElementById("modalArea");
+const mOk=document.getElementById("modalOk");
+let modalMode="export";
+
+function openModal(mode){
+  modalMode=mode; modal.classList.add("show");
+  if(mode==="export"){
+    mTitle.textContent="Exportar progresso";
+    mDesc.textContent="Copie o código abaixo e cole no outro aparelho usando o botão Importar.";
+    mArea.value=JSON.stringify(state); mArea.readOnly=true;
+    mOk.textContent="Copiar código";
+  } else {
+    mTitle.textContent="Importar progresso";
+    mDesc.textContent="Cole aqui o código exportado do outro aparelho. Isso substitui as marcações atuais.";
+    mArea.value=""; mArea.readOnly=false;
+    mOk.textContent="Importar";
+  }
+}
+function closeModal(){ modal.classList.remove("show"); }
+
+document.getElementById("exportBtn").addEventListener("click",()=>openModal("export"));
+document.getElementById("importBtn").addEventListener("click",()=>openModal("import"));
+document.getElementById("modalCancel").addEventListener("click",closeModal);
+modal.addEventListener("click",e=>{ if(e.target===modal) closeModal(); });
+
+mOk.addEventListener("click",()=>{
+  if(modalMode==="export"){
+    mArea.select(); mArea.setSelectionRange(0,99999);
+    let ok=false;
+    try{ ok=document.execCommand("copy"); }catch(e){}
+    if(navigator.clipboard){ navigator.clipboard.writeText(mArea.value).catch(()=>{}); ok=true; }
+    mOk.textContent = ok ? "Copiado! ✓" : "Selecione e copie manualmente";
+    setTimeout(()=>{ mOk.textContent="Copiar código"; }, 1800);
+  } else {
+    const txt=mArea.value.trim();
+    if(!txt){ return; }
+    try{
+      const obj=JSON.parse(txt);
+      if(typeof obj!=="object"||Array.isArray(obj)) throw new Error();
+      state=obj; save(); render(); closeModal();
+    }catch(e){ alert("Código inválido. Confira se você colou o texto completo do Exportar."); }
+  }
+});
+
 load(); render();
 </script>
 </body>
