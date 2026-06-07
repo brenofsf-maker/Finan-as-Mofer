@@ -93,22 +93,9 @@
 <div id="list"></div>
 <footer>
   <button class="btn-faltam" id="toggleFaltam">Mostrar só o que falta</button>
-  <button class="btn-sync" id="exportBtn">Exportar</button>
-  <button class="btn-sync" id="importBtn">Importar</button>
-  <button class="btn-reset" id="reset">Zerar</button>
 </footer>
 
-<div id="modal">
-  <div class="modal-box">
-    <div class="modal-title" id="modalTitle">Backup</div>
-    <p class="modal-desc" id="modalDesc"></p>
-    <textarea id="modalArea" placeholder="Cole aqui o código do backup..."></textarea>
-    <div class="modal-actions">
-      <button class="btn-reset" id="modalCancel">Fechar</button>
-      <button class="btn-faltam" id="modalOk">Confirmar</button>
-    </div>
-  </div>
-</div>
+<div id="modal" style="display:none"></div>
 <script type="module">
 // ===== Firebase (sincronização em nuvem) =====
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -291,55 +278,6 @@ document.getElementById("search").addEventListener("input",render);
 document.getElementById("toggleFaltam").addEventListener("click",e=>{
   onlyFaltam=!onlyFaltam; e.target.textContent=onlyFaltam?"Mostrar todas":"Mostrar só o que falta";
   e.target.style.background=onlyFaltam?"#2ea043":""; render();
-});
-document.getElementById("reset").addEventListener("click",()=>{ if(confirm("Zerar todas as figurinhas marcadas?")){ state={}; save(); render(); } });
-
-// ---- Exportar / Importar ----
-const modal=document.getElementById("modal");
-const mTitle=document.getElementById("modalTitle");
-const mDesc=document.getElementById("modalDesc");
-const mArea=document.getElementById("modalArea");
-const mOk=document.getElementById("modalOk");
-let modalMode="export";
-
-function openModal(mode){
-  modalMode=mode; modal.classList.add("show");
-  if(mode==="export"){
-    mTitle.textContent="Exportar progresso";
-    mDesc.textContent="Copie o código abaixo e cole no outro aparelho usando o botão Importar.";
-    mArea.value=JSON.stringify(state); mArea.readOnly=true;
-    mOk.textContent="Copiar código";
-  } else {
-    mTitle.textContent="Importar progresso";
-    mDesc.textContent="Cole aqui o código exportado do outro aparelho. Isso substitui as marcações atuais.";
-    mArea.value=""; mArea.readOnly=false;
-    mOk.textContent="Importar";
-  }
-}
-function closeModal(){ modal.classList.remove("show"); }
-
-document.getElementById("exportBtn").addEventListener("click",()=>openModal("export"));
-document.getElementById("importBtn").addEventListener("click",()=>openModal("import"));
-document.getElementById("modalCancel").addEventListener("click",closeModal);
-modal.addEventListener("click",e=>{ if(e.target===modal) closeModal(); });
-
-mOk.addEventListener("click",()=>{
-  if(modalMode==="export"){
-    mArea.select(); mArea.setSelectionRange(0,99999);
-    let ok=false;
-    try{ ok=document.execCommand("copy"); }catch(e){}
-    if(navigator.clipboard){ navigator.clipboard.writeText(mArea.value).catch(()=>{}); ok=true; }
-    mOk.textContent = ok ? "Copiado! ✓" : "Selecione e copie manualmente";
-    setTimeout(()=>{ mOk.textContent="Copiar código"; }, 1800);
-  } else {
-    const txt=mArea.value.trim();
-    if(!txt){ return; }
-    try{
-      const obj=JSON.parse(txt);
-      if(typeof obj!=="object"||Array.isArray(obj)) throw new Error();
-      state=obj; save(); render(); closeModal();
-    }catch(e){ alert("Código inválido. Confira se você colou o texto completo do Exportar."); }
-  }
 });
 
 // ===== Inicialização =====
