@@ -71,6 +71,12 @@
     padding:10px; font-size:12px; font-family:monospace; resize:none; background:var(--card); color:var(--txt); }
   .modal-actions{ display:flex; gap:8px; margin-top:12px; }
   .modal-actions button{ flex:1; padding:11px; border-radius:10px; border:none; font-size:13px; font-weight:600; cursor:pointer; }
+  #syncDot{ font-size:11px; color:var(--muted); display:flex; align-items:center; gap:5px; margin-top:6px; }
+  #syncDot .dot{ width:8px; height:8px; border-radius:50%; background:#999; flex-shrink:0; }
+  #syncDot.ok .dot{ background:var(--green); }
+  #syncDot.saving .dot{ background:var(--gold); animation:pulse 1s infinite; }
+  #syncDot.off .dot{ background:#d1242f; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.3;} }
 </style>
 </head>
 <body>
@@ -81,6 +87,7 @@
     <div class="track"><div class="fill" id="gFill"></div></div>
   </div>
   <input class="search" id="search" placeholder="🔍 Buscar seleção ou seção...">
+  <div id="syncDot" class="off"><span class="dot"></span><span id="syncText">Conectando à nuvem...</span></div>
   <div id="warn">⚠️ Não foi possível salvar neste navegador. Suas marcações valem só nesta sessão.</div>
 </header>
 <div id="list"></div>
@@ -102,7 +109,28 @@
     </div>
   </div>
 </div>
-<script>
+<script type="module">
+// ===== Firebase (sincronização em nuvem) =====
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDK8GHlVgIbu9z0Pkf0fXH4KBytDC4myZY",
+  authDomain: "acm-2026.firebaseapp.com",
+  databaseURL: "https://acm-2026-default-rtdb.firebaseio.com",
+  projectId: "acm-2026",
+  storageBucket: "acm-2026.firebasestorage.app",
+  messagingSenderId: "784903889394",
+  appId: "1:784903889394:web:50c270f9a6e90da5460b6b"
+};
+
+let db=null, dbRef=null, fbReady=false, applyingRemote=false;
+try{
+  const app=initializeApp(firebaseConfig);
+  db=getDatabase(app);
+  dbRef=ref(db,"album/familia"); // álbum compartilhado da família
+}catch(e){ console.error("Firebase init falhou",e); }
+
 const PER_TEAM = 20;
 const TEAMS = [
   ["A","🇲🇽","México"],["A","🇿🇦","África do Sul"],["A","🇰🇷","Coreia do Sul"],["A","🇨🇿","Tchéquia"],
@@ -127,15 +155,36 @@ const FWC_SUBS = { 0:"Abertura", 9:"History (Museu)" }; // índice -> subtítulo
 const CC_TOTAL = 14;
 
 let state={}, onlyFaltam=false, canStore=true; const openSet=new Set();
-function load(){
+let saveTimer=null;
+
+function setSync(cls,txt){
+  const el=document.getElementById("syncDot");
+  if(!el) return; el.className=cls;
+  document.getElementById("syncText").textContent=txt;
+}
+
+function loadLocal(){
   try{ const r=localStorage.getItem("copa2026v3"); state=r?JSON.parse(r):{}; }
-  catch(e){ canStore=false; state={}; document.getElementById("warn").style.display="block"; }
+  catch(e){ canStore=false; state={}; }
 }
-function save(){
+function saveLocal(){
   if(!canStore) return;
-  try{ localStorage.setItem("copa2026v3", JSON.stringify(state)); }
-  catch(e){ canStore=false; document.getElementById("warn").style.display="block"; }
+  try{ localStorage.setItem("copa2026v3", JSON.stringify(state)); }catch(e){ canStore=false; }
 }
+
+// save: grava local na hora (cache) e envia pra nuvem com leve debounce
+function save(){
+  saveLocal();
+  if(!dbRef) return;
+  setSync("saving","Salvando...");
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    set(dbRef, state)
+      .then(()=>setSync("ok","Sincronizado ✓"))
+      .catch(()=>setSync("off","Erro ao salvar — tentará de novo"));
+  }, 250);
+}
+
 function key(id,n){ return id+"_"+n; }
 function count(id,total){ let c=0; for(let n=1;n<=total;n++) if(state[key(id,n)]) c++; return c; }
 
@@ -293,7 +342,30 @@ mOk.addEventListener("click",()=>{
   }
 });
 
-load(); render();
+// ===== Inicialização =====
+loadLocal(); render(); // mostra cache local imediatamente
+
+if(dbRef){
+  // Escuta o banco: qualquer mudança (deste ou de outro aparelho) atualiza a tela
+  onValue(dbRef, (snap)=>{
+    fbReady=true;
+    const remote=snap.val();
+    if(remote && typeof remote==="object"){
+      state=remote; saveLocal(); render();
+    } else {
+      // banco vazio: se houver dados locais, sobe; senão fica vazio
+      if(Object.keys(state).length>0){ set(dbRef,state).catch(()=>{}); }
+    }
+    setSync("ok","Sincronizado ✓");
+  }, (err)=>{
+    fbReady=false; setSync("off","Sem nuvem — salvando só neste aparelho");
+    console.error("Firebase onValue erro:",err);
+  });
+  // timeout: se não conectar em 6s, avisa
+  setTimeout(()=>{ if(!fbReady) setSync("off","Sem nuvem — salvando só neste aparelho"); }, 6000);
+} else {
+  setSync("off","Sem nuvem — salvando só neste aparelho");
+}
 </script>
 </body>
 </html>
